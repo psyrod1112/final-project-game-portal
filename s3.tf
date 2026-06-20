@@ -40,7 +40,8 @@ resource "aws_s3_object" "index" {
   key          = "index.html"
   content_type = "text/html"
   content = templatefile("${path.module}/frontend/index.html", {
-    api_url = "http://${aws_lb.main.dns_name}"
+    api_url      = "http://${aws_lb.main.dns_name}"
+    game_bucket  = "${var.name_prefix}-builds-${random_id.suffix.hex}"
   })
   depends_on = [aws_s3_bucket_policy.frontend]
 }
