@@ -1,0 +1,10 @@
+aws_region        = "us-east-1"
+name_prefix       = "game-portal"
+instance_type     = "t3.micro"
+db_instance_class = "db.t3.micro"
+db_name           = "gameportal"
+db_username       = "dbadmin"
+
+# Do NOT put db_password here.
+# Set it before running terraform:
+# export TF_VAR_db_password="YourPassword-123"

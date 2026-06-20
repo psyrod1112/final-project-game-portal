@@ -1,0 +1,262 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Game Portal - HA Demo</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: 'Segoe UI', sans-serif; background: #0f0f1a; color: #e0e0e0; }
+    header { background: #1a1a2e; padding: 20px 40px; border-bottom: 2px solid #6c63ff; }
+    header h1 { color: #6c63ff; font-size: 1.8rem; }
+    header p { color: #888; font-size: 0.85rem; margin-top: 4px; }
+    nav { display: flex; gap: 8px; margin-top: 14px; }
+    nav button {
+      padding: 8px 20px; border: 1px solid #6c63ff; background: transparent;
+      color: #6c63ff; border-radius: 4px; cursor: pointer; font-size: 0.9rem;
+    }
+    nav button.active { background: #6c63ff; color: #fff; }
+    .section { display: none; padding: 30px 40px; max-width: 900px; margin: 0 auto; }
+    .section.active { display: block; }
+    h2 { color: #a78bfa; margin-bottom: 20px; font-size: 1.3rem; }
+    .card {
+      background: #1a1a2e; border: 1px solid #2a2a4a; border-radius: 8px;
+      padding: 24px; margin-bottom: 16px;
+    }
+    .download-box { text-align: center; padding: 40px; }
+    .download-box .icon { font-size: 4rem; margin-bottom: 16px; }
+    .download-box .count { color: #888; margin-bottom: 20px; }
+    .btn {
+      padding: 12px 28px; background: #6c63ff; color: #fff; border: none;
+      border-radius: 6px; cursor: pointer; font-size: 1rem; font-weight: 600;
+    }
+    .btn:hover { background: #574fd6; }
+    .btn-sm {
+      padding: 8px 16px; background: #6c63ff; color: #fff; border: none;
+      border-radius: 4px; cursor: pointer; font-size: 0.85rem;
+    }
+    table { width: 100%; border-collapse: collapse; }
+    th { text-align: left; padding: 10px 12px; color: #a78bfa; border-bottom: 1px solid #2a2a4a; font-size: 0.85rem; }
+    td { padding: 10px 12px; border-bottom: 1px solid #1e1e36; font-size: 0.9rem; }
+    tr:last-child td { border-bottom: none; }
+    .rank-1 td:first-child { color: #ffd700; }
+    .rank-2 td:first-child { color: #c0c0c0; }
+    .rank-3 td:first-child { color: #cd7f32; }
+    .form-row { display: flex; gap: 10px; margin-top: 16px; flex-wrap: wrap; }
+    input, textarea {
+      background: #0f0f1a; border: 1px solid #2a2a4a; color: #e0e0e0;
+      padding: 10px 14px; border-radius: 4px; font-size: 0.9rem; width: 100%;
+    }
+    textarea { resize: vertical; min-height: 80px; }
+    .form-row input { flex: 1; min-width: 120px; }
+    .post-item { cursor: pointer; transition: background 0.2s; }
+    .post-item:hover { background: #1e1e36; }
+    .post-detail { display: none; }
+    .post-detail.active { display: block; }
+    .back-btn { color: #6c63ff; background: none; border: none; cursor: pointer; margin-bottom: 16px; font-size: 0.9rem; }
+    .meta { color: #666; font-size: 0.8rem; margin-bottom: 8px; }
+    .tag {
+      display: inline-block; background: #2a2a4a; color: #a78bfa;
+      padding: 2px 8px; border-radius: 10px; font-size: 0.75rem; margin-right: 4px;
+    }
+    .empty { color: #555; text-align: center; padding: 30px; }
+  </style>
+</head>
+<body>
+
+<header>
+  <h1>Game Portal</h1>
+  <p>HA Architecture Demo &mdash; ALB + ASG + RDS + S3 on AWS</p>
+  <nav>
+    <button class="active" onclick="showTab('download', this)">Download</button>
+    <button onclick="showTab('ranking', this)">Ranking</button>
+    <button onclick="showTab('board', this)">Board</button>
+  </nav>
+</header>
+
+<!-- Download -->
+<div id="download" class="section active">
+  <h2>Game Download</h2>
+  <div class="card download-box">
+    <div class="icon">&#127918;</div>
+    <div style="font-size:1.4rem;font-weight:700;margin-bottom:8px;">Game Portal Demo v1.0</div>
+    <div class="count" id="dl-count">Loading download count...</div>
+    <button class="btn" onclick="downloadGame()">Download</button>
+  </div>
+</div>
+
+<!-- Ranking -->
+<div id="ranking" class="section">
+  <h2>Leaderboard</h2>
+  <div class="card">
+    <table>
+      <thead>
+        <tr><th>#</th><th>Player</th><th>Score</th><th>Date</th></tr>
+      </thead>
+      <tbody id="ranking-body">
+        <tr><td colspan="4" class="empty">Loading...</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <div class="card">
+    <div style="font-weight:600;margin-bottom:12px;color:#a78bfa;">Submit Score</div>
+    <div class="form-row">
+      <input id="score-name" placeholder="Player name" />
+      <input id="score-val" type="number" placeholder="Score" style="max-width:140px;" />
+      <button class="btn-sm" onclick="submitScore()">Submit</button>
+    </div>
+  </div>
+</div>
+
+<!-- Board -->
+<div id="board" class="section">
+  <h2>Bulletin Board</h2>
+  <div id="post-list-view">
+    <div class="card">
+      <div style="font-weight:600;margin-bottom:12px;color:#a78bfa;">New Post</div>
+      <input id="post-title" placeholder="Title" style="margin-bottom:8px;" />
+      <input id="post-author" placeholder="Author" style="margin-bottom:8px;" />
+      <textarea id="post-content" placeholder="Content"></textarea>
+      <div style="margin-top:10px;">
+        <button class="btn-sm" onclick="submitPost()">Post</button>
+      </div>
+    </div>
+    <div class="card" id="post-list">
+      <div class="empty">Loading posts...</div>
+    </div>
+  </div>
+  <div id="post-detail-view" class="post-detail">
+    <button class="back-btn" onclick="showPostList()">&#8592; Back to list</button>
+    <div class="card">
+      <div id="detail-title" style="font-size:1.2rem;font-weight:700;margin-bottom:8px;"></div>
+      <div id="detail-meta" class="meta"></div>
+      <div id="detail-content" style="margin-top:16px;line-height:1.7;white-space:pre-wrap;"></div>
+    </div>
+  </div>
+</div>
+
+<script>
+var API_URL = "${api_url}";
+
+function showTab(id, btn) {
+  document.querySelectorAll('.section').forEach(function(s) { s.classList.remove('active'); });
+  document.querySelectorAll('nav button').forEach(function(b) { b.classList.remove('active'); });
+  document.getElementById(id).classList.add('active');
+  btn.classList.add('active');
+  if (id === 'ranking') loadRanking();
+  if (id === 'board') loadPosts();
+}
+
+function loadDownloadCount() {
+  fetch(API_URL + '/api/downloads/count')
+    .then(function(r) { return r.json(); })
+    .then(function(d) {
+      document.getElementById('dl-count').textContent = 'Downloaded ' + d.count + ' times';
+    })
+    .catch(function() {
+      document.getElementById('dl-count').textContent = 'Count unavailable';
+    });
+}
+
+function downloadGame() {
+  fetch(API_URL + '/api/downloads/track', { method: 'POST' })
+    .then(function(r) { return r.json(); })
+    .then(function(d) {
+      document.getElementById('dl-count').textContent = 'Downloaded ' + d.count + ' times';
+    });
+  var gameUrl = 'https://' + '${game_bucket}' + '.s3.amazonaws.com/game-v1.0.zip';
+  window.open(gameUrl, '_blank');
+}
+
+function loadRanking() {
+  fetch(API_URL + '/api/ranking')
+    .then(function(r) { return r.json(); })
+    .then(function(rows) {
+      var tbody = document.getElementById('ranking-body');
+      if (!rows.length) {
+        tbody.innerHTML = '<tr><td colspan="4" class="empty">No scores yet</td></tr>';
+        return;
+      }
+      tbody.innerHTML = rows.map(function(r, i) {
+        var cls = i === 0 ? 'rank-1' : i === 1 ? 'rank-2' : i === 2 ? 'rank-3' : '';
+        var date = new Date(r.created_at).toLocaleDateString();
+        return '<tr class="' + cls + '"><td>#' + (i+1) + '</td><td>' + r.player_name + '</td><td>' + r.score + '</td><td>' + date + '</td></tr>';
+      }).join('');
+    });
+}
+
+function submitScore() {
+  var name = document.getElementById('score-name').value.trim();
+  var score = parseInt(document.getElementById('score-val').value);
+  if (!name || isNaN(score)) return alert('Enter player name and score.');
+  fetch(API_URL + '/api/scores', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ player_name: name, score: score })
+  }).then(function() {
+    document.getElementById('score-name').value = '';
+    document.getElementById('score-val').value = '';
+    loadRanking();
+  });
+}
+
+function loadPosts() {
+  fetch(API_URL + '/api/posts')
+    .then(function(r) { return r.json(); })
+    .then(function(posts) {
+      var el = document.getElementById('post-list');
+      if (!posts.length) {
+        el.innerHTML = '<div class="empty">No posts yet. Be the first!</div>';
+        return;
+      }
+      el.innerHTML = posts.map(function(p) {
+        var date = new Date(p.created_at).toLocaleDateString();
+        return '<div class="post-item" onclick="viewPost(' + p.id + ')" style="padding:14px;border-bottom:1px solid #2a2a4a;">' +
+          '<div style="font-weight:600;">' + p.title + '</div>' +
+          '<div class="meta" style="margin-top:4px;">' +
+            '<span class="tag">' + p.author + '</span>' + date +
+          '</div>' +
+        '</div>';
+      }).join('');
+    });
+}
+
+function viewPost(id) {
+  fetch(API_URL + '/api/posts/' + id)
+    .then(function(r) { return r.json(); })
+    .then(function(p) {
+      document.getElementById('detail-title').textContent = p.title;
+      document.getElementById('detail-meta').innerHTML = '<span class="tag">' + p.author + '</span> ' + new Date(p.created_at).toLocaleString();
+      document.getElementById('detail-content').textContent = p.content;
+      document.getElementById('post-list-view').style.display = 'none';
+      document.getElementById('post-detail-view').classList.add('active');
+    });
+}
+
+function showPostList() {
+  document.getElementById('post-list-view').style.display = 'block';
+  document.getElementById('post-detail-view').classList.remove('active');
+}
+
+function submitPost() {
+  var title = document.getElementById('post-title').value.trim();
+  var author = document.getElementById('post-author').value.trim() || 'Anonymous';
+  var content = document.getElementById('post-content').value.trim();
+  if (!title) return alert('Title is required.');
+  fetch(API_URL + '/api/posts', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ title: title, author: author, content: content })
+  }).then(function() {
+    document.getElementById('post-title').value = '';
+    document.getElementById('post-author').value = '';
+    document.getElementById('post-content').value = '';
+    loadPosts();
+  });
+}
+
+loadDownloadCount();
+</script>
+
+</body>
+</html>
