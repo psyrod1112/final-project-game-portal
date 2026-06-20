@@ -9,8 +9,8 @@ DB_NAME="${db_name}"
 DB_USER="${db_user}"
 DB_PASSWORD="${db_password}"
 
-# --- Install Node.js ---
-dnf install -y nodejs npm
+# --- Install Node.js (npm is bundled with nodejs on AL2023) ---
+dnf install -y nodejs
 
 # --- Create app directory ---
 mkdir -p /app
