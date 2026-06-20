@@ -1,22 +1,19 @@
 #!/bin/bash
-set -euo pipefail
-exec > >(tee /var/log/game-portal-user-data.log | logger -t user-data) 2>&1
+exec >> /var/log/game-portal-user-data.log 2>&1
+echo "=== user-data start: $(date) ==="
 
-# --- Terraform-injected DB connection values ---
 DB_HOST="${db_host}"
 DB_PORT="${db_port}"
 DB_NAME="${db_name}"
 DB_USER="${db_user}"
 DB_PASSWORD="${db_password}"
 
-# --- Install Node.js (npm is bundled with nodejs on AL2023) ---
+echo "=== Installing Node.js ==="
 dnf install -y nodejs
+echo "=== node: $(node --version), npm: $(npm --version) ==="
 
-# --- Create app directory ---
 mkdir -p /app
-cd /app
 
-# --- Write DB config (shell expands variables here) ---
 cat > /app/config.json << EOF
 {
   "host": "$DB_HOST",
@@ -28,7 +25,6 @@ cat > /app/config.json << EOF
 }
 EOF
 
-# --- Write package.json ---
 cat > /app/package.json << 'PKGJSON'
 {
   "name": "game-portal-api",
@@ -42,7 +38,6 @@ cat > /app/package.json << 'PKGJSON'
 }
 PKGJSON
 
-# --- Write server.js (single-quoted heredoc: no shell or Terraform expansion) ---
 cat > /app/server.js << 'JSEOF'
 const express = require('express');
 const { Pool } = require('pg');
@@ -83,9 +78,7 @@ app.get('/api/ranking', async function(req, res) {
 
 app.post('/api/scores', async function(req, res) {
   try {
-    const player_name = req.body.player_name;
-    const score = req.body.score;
-    const result = await pool.query('INSERT INTO rankings (player_name, score) VALUES ($1, $2) RETURNING *', [player_name, score]);
+    const result = await pool.query('INSERT INTO rankings (player_name, score) VALUES ($1, $2) RETURNING *', [req.body.player_name, req.body.score]);
     res.json(result.rows[0]);
   } catch (e) {
     res.status(500).json({ error: e.message });
@@ -103,10 +96,7 @@ app.get('/api/posts', async function(req, res) {
 
 app.post('/api/posts', async function(req, res) {
   try {
-    const title = req.body.title;
-    const content = req.body.content || '';
-    const author = req.body.author || 'Anonymous';
-    const result = await pool.query('INSERT INTO posts (title, content, author) VALUES ($1, $2, $3) RETURNING *', [title, content, author]);
+    const result = await pool.query('INSERT INTO posts (title, content, author) VALUES ($1, $2, $3) RETURNING *', [req.body.title, req.body.content || '', req.body.author || 'Anonymous']);
     res.json(result.rows[0]);
   } catch (e) {
     res.status(500).json({ error: e.message });
@@ -126,8 +116,7 @@ app.get('/api/posts/:id', async function(req, res) {
 app.get('/api/downloads/count', async function(req, res) {
   try {
     const result = await pool.query('SELECT count FROM downloads WHERE id = 1');
-    const count = result.rows[0] ? result.rows[0].count : 0;
-    res.json({ count: count });
+    res.json({ count: result.rows[0] ? result.rows[0].count : 0 });
   } catch (e) {
     res.status(500).json({ error: e.message });
   }
@@ -152,10 +141,10 @@ initDB().then(function() {
 });
 JSEOF
 
-# --- Install dependencies ---
-npm install --production
+echo "=== npm install ==="
+cd /app && npm install --production
 
-# --- Create systemd service ---
+echo "=== creating systemd service ==="
 cat > /etc/systemd/system/game-portal.service << 'SYSTEMD'
 [Unit]
 Description=Game Portal API
@@ -169,6 +158,8 @@ ExecStart=/usr/bin/node server.js
 Restart=always
 RestartSec=15
 Environment=NODE_ENV=production
+StandardOutput=journal
+StandardError=journal
 
 [Install]
 WantedBy=multi-user.target
@@ -177,3 +168,4 @@ SYSTEMD
 systemctl daemon-reload
 systemctl enable game-portal
 systemctl start game-portal
+echo "=== user-data done: $(date) ==="
